@@ -7,15 +7,25 @@ var Visualizer = function(container) {
     this.file;
     this.fileName;
     this.freqs;
+    this.sfCanvas;
+    this.sfCtx;
     this.status = 0;
+    this.stars;
     this.source;
 };
 
 Visualizer.prototype.initBgCanvas = function() {
     this.bgCanvas = document.createElement('canvas');
     this.bgCtx = this.bgCanvas.getContext('2d');
-    this.bgCanvas.setAttribute('style', 'position: absolute; z-index: 10');
+    this.bgCanvas.setAttribute('style', 'position: absolute; z-index: 1');
     this.container.appendChild(this.bgCanvas);
+};
+
+Visualizer.prototype.initSfCanvas = function() {
+    this.sfCanvas = document.createElement('canvas');
+    this.sfCtx = this.sfCanvas.getContext('2d');
+    this.sfCanvas.setAttribute('style', 'position: absolute; z-index: 5');
+    this.container.appendChild(this.sfCanvas);
 };
 
 Visualizer.prototype.init = function() {
@@ -24,12 +34,17 @@ Visualizer.prototype.init = function() {
     var resize = function() {
         self.bgCanvas.width = window.innerWidth;
         self.bgCanvas.height = window.innerHeight;
+
+        self.sfCanvas.width = window.innerWidth;
+        self.sfCanvas.height = window.innerHeight;
+        self.sfCtx.translate(self.sfCanvas.width / 2, self.sfCanvas.height / 2);
     };
 
-    this.initBgCanvas();
-    resize();
     this.initAudioAPI();
     this.initDrop();
+    this.initBgCanvas();
+    this.initSfCanvas();
+    resize();
     window.addEventListener('resize', this.resize, false);
 };
 
@@ -115,10 +130,9 @@ Visualizer.prototype.visualize = function(buffer) {
 };
 
 Visualizer.prototype.drawBg = function() {
-    this.bgCtx.clearRect(0, 0, this.bgCanvas.width, this.bgCanvasHeight);
+    this.bgCtx.clearRect(0, 0, this.bgCanvas.width, this.bgCanvas.height);
     var r, g, b, a;
     var val = this.analyser.volume / 1000;
-    console.log(val);
     r = 200 + (Math.sin(val) + 1) * 28;
     g = val * 4;
     b = val * 8;
@@ -136,6 +150,29 @@ Visualizer.prototype.drawBg = function() {
     this.bgCtx.fill();
 };
 
+Visualizer.prototype.drawStars = function() {
+    this.sfCtx.save();
+    this.sfCtx.setTransform(1, 0, 0, 1, 0, 0);
+    this.sfCtx.clearRect(0, 0, this.sfCanvas.width, this.sfCanvas.height);
+    this.sfCtx.restore();
+
+    this.stars.forEach(function(star) {
+        star.drawStar();
+    });
+};
+
+Visualizer.prototype.makeStarArray = function () {
+    var x, y, starSize;
+    this.stars = [];
+    var limit = this.sfCanvas.width / 15;
+    for (var i = 0; i < limit; i++) {
+        x = (Math.random()- 0.5) * this.sfCanvas.width;
+        y = (Math.random()- 0.5) * this.sfCanvas.height;
+        starSize = (Math.random() + 0.1) * 3;
+        this.stars.push(new Star(x, y, starSize, this.sfCtx, this.sfCanvas, this.analyser));
+    };
+};
+
 Visualizer.prototype.startVisualization = function() {
     var self = this;
     self.freqs = new Uint8Array(self.analyser.frequencyBinCount);
@@ -150,8 +187,10 @@ Visualizer.prototype.startVisualization = function() {
         self.analyser.volume = total;
 
         self.drawBg();
+        self.drawStars();
         requestAnimationFrame(draw);
     };
+    self.makeStarArray();
     draw();
 };
 
