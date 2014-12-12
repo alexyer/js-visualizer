@@ -3,18 +3,17 @@
     <head>
         <meta http-equiv="content-type" content="text/html; charset=utf-8">
         <title>Audio visualizer</title>
+        <link rel="stylesheet" href="css/main.css" type="text/css" media="screen" charset="utf-8">
         <script src="js/visualizer.js" charset="utf-8"></script>
         <script src="js/app.js" charset="utf-8"></script>
     </head>
     <body>
-        <div id="file-wrapper" class="file-wrapper">
-            <div id="info">
-                Audio Visualizer
+        <div id="visualizer"></div>
+        <div id="control-panel" class="hidden">
+            <div id="tab">
+                <a href="#" id="toggleButton"><i>Hide</i></a>
             </div>
-            <label for="uploaded-file">Drag&Drop file to play</label>
-        </div>
-        <div id="visualiser-wrapper">
-            <canvas id="canvas"></canvas>
+            <div id="info">Audio Visualizer</div>
         </div>
     </body>
 </html>
