@@ -31,6 +31,7 @@ a:hover, a:active {
 }
 
 #info {
+    text-align: center;
     z-index: 50;
     position: absolute;
     float: left;

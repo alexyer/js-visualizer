@@ -1,9 +1,13 @@
 var Visualizer = function(container) {
+    this.audioBufferSourceNode;
     this.audioContext;
     this.analyser;
     this.bgCanvas;
     this.bgCtx;
     this.container = container;
+    this.fgCanvas;
+    this.fgCtx;
+    this.fgRotation = 0.001;
     this.file;
     this.fileName;
     this.freqs;
@@ -12,6 +16,8 @@ var Visualizer = function(container) {
     this.status = 0;
     this.stars;
     this.source;
+    this.tiles;
+    this.tileSize;
 };
 
 Visualizer.prototype.initBgCanvas = function() {
@@ -28,6 +34,13 @@ Visualizer.prototype.initSfCanvas = function() {
     this.container.appendChild(this.sfCanvas);
 };
 
+Visualizer.prototype.initFgCanvas = function() {
+    this.fgCanvas = document.createElement('canvas');
+    this.fgCtx = this.fgCanvas.getContext('2d');
+    this.fgCanvas.setAttribute('style', 'position: absolute; z-index: 10');
+    this.container.appendChild(this.fgCanvas);
+};
+
 Visualizer.prototype.init = function() {
     var self = this;
 
@@ -38,11 +51,18 @@ Visualizer.prototype.init = function() {
         self.sfCanvas.width = window.innerWidth;
         self.sfCanvas.height = window.innerHeight;
         self.sfCtx.translate(self.sfCanvas.width / 2, self.sfCanvas.height / 2);
+
+        self.fgCanvas.width = window.innerWidth;
+        self.fgCanvas.height = window.innerHeight;
+        self.fgCtx.translate(self.fgCanvas.width / 2, self.fgCanvas.height / 2);
+        self.tileSize = self.fgCanvas.width > self.fgCanvas.height ? self.fgCanvas.width / 40 : self.fgCanvas.height / 40;
+        self.makePolygonArray();
     };
 
     this.initAudioAPI();
     this.initDrop();
     this.initBgCanvas();
+    this.initFgCanvas();
     this.initSfCanvas();
     resize();
     window.addEventListener('resize', this.resize, false);
@@ -107,22 +127,27 @@ Visualizer.prototype.start = function() {
 
 Visualizer.prototype.visualize = function(buffer) {
     var self = this;
-    var audioBufferSourceNode = self.audioContext.createBufferSource();
+    if (this.audioBufferSourceNode) {
+        this.audioBufferSourceNode.stop(0);
+    };
+
+    this.audioBufferSourceNode = self.audioContext.createBufferSource();
     this.analyser = self.audioContext.createAnalyser();
     this.analyser.fftSize = 256;
 
-    audioBufferSourceNode.connect(this.analyser);
+    this.audioBufferSourceNode.connect(this.analyser);
     this.analyser.connect(self.audioContext.destination);
-    audioBufferSourceNode.buffer = buffer;
+    this.audioBufferSourceNode.buffer = buffer;
 
-    if (!audioBufferSourceNode.start) {
-        audioBufferSourceNode.start = audioBufferSourceNode.noteOn;
-        audioBufferSourceNode.stop = audioBufferSourceNode.noteOff;
+    if (!this.audioBufferSourceNode.start) {
+        this.audioBufferSourceNode.start = this.audioBufferSourceNode.noteOn;
+        this.audioBufferSourceNode.stop = this.audioBufferSourceNode.noteOff;
     };
 
-    audioBufferSourceNode.start(0);
+    this.audioBufferSourceNode.start(0);
+    this.updateInfo('Now playing: ' + this.fileName);
     this.status = 1;
-    audioBufferSourceNode.onended = function() {
+    this.audioBufferSourceNode.onended = function() {
         self.audioEnd(self);
     };
 
@@ -161,6 +186,18 @@ Visualizer.prototype.drawStars = function() {
     });
 };
 
+Visualizer.prototype.drawTiles = function() {
+    this.fgCtx.save();
+    this.fgCtx.setTransform(1, 0, 0, 1, 0, 0);
+    this.fgCtx.clearRect(0, 0, this.fgCanvas.width, this.fgCanvas.height);
+    this.fgCtx.restore();
+
+    this.tiles.forEach(function(tile) {
+        tile.drawPolygon();
+        tile.drawHighlight();
+    });
+};
+
 Visualizer.prototype.makeStarArray = function () {
     var x, y, starSize;
     this.stars = [];
@@ -173,9 +210,40 @@ Visualizer.prototype.makeStarArray = function () {
     };
 };
 
+Visualizer.prototype.makePolygonArray = function () {
+    this.tiles = [];
+
+    var i = 0;
+    this.tiles.push(new Polygon(6, 0, 0, this.tileSize, this.fgCtx, i, this.fgRotation, this.tiles, this.analyser));
+    i++;
+    for (var layer = 1; layer < 7; layer++) {
+        this.tiles.push(new Polygon(6, 0, layer, this.tileSize, this.fgCtx, i, this.fgRotation, this.tiles, this.analyser));
+        i++;
+        this.tiles.push(new Polygon(6, 0, -layer, this.tileSize, this.fgCtx, i, this.fgRotation, this.tiles, this.analyser));
+        i++;
+        for (var x = 1; x < layer; x++) {
+            this.tiles.push(new Polygon(6, x, -layer, this.tileSize, this.fgCtx, i, this.fgRotation, this.tiles, this.analyser));
+            i++;
+            this.tiles.push(new Polygon(6, -x, layer, this.tileSize, this.fgCtx, i, this.fgRotation, this.tiles, this.analyser));
+            i++;
+            this.tiles.push(new Polygon(6, x, layer-x, this.tileSize, this.fgCtx, i, this.fgRotation, this.tiles, this.analyser));
+            i++;
+            this.tiles.push(new Polygon(6, -x, -layer+x, this.tileSize, this.fgCtx, i, this.fgRotation, this.tiles, this.analyser));
+            i++;
+        };
+        for (var y = -layer; y <= 0; y++) {
+            this.tiles.push(new Polygon(6, layer, y, this.tileSize, this.fgCtx, i, this.fgRotation, this.tiles, this.analyser));
+            i++;
+            this.tiles.push(new Polygon(6, -layer, -y, this.tileSize, this.fgCtx, i, this.fgRotation, this.tiles, this.analyser));
+            i++;
+        };
+    };
+};
+
 Visualizer.prototype.startVisualization = function() {
     var self = this;
     self.freqs = new Uint8Array(self.analyser.frequencyBinCount);
+    self.analyser.volume = 0;
 
     var draw = function() {
         self.analyser.getByteFrequencyData(self.freqs);
@@ -188,11 +256,21 @@ Visualizer.prototype.startVisualization = function() {
 
         self.drawBg();
         self.drawStars();
+        self.drawTiles();
+        self.rotateForeground();
         requestAnimationFrame(draw);
     };
+    self.makePolygonArray();
     self.makeStarArray();
     draw();
 };
+
+Visualizer.prototype.rotateForeground = function () {
+    var self = this;
+    this.tiles.forEach(function (tile) {
+        tile.rotateVertices(self);
+    });
+}
 
 Visualizer.prototype.audioEnd = function(instance) {
     if (this.forceStop) {
